@@ -4,14 +4,14 @@ with st.expander("📤 第三步：上傳與產生"):
 st.markdown("""
 1. 點擊「瀏覽檔案」上傳你的 Excel
 2. 檢查資料預覽是否正確
-3. 點擊「🚀 產生所有學生的診斷報告」
+3. 點擊「產生所有學生的診斷報告」
 4. 等待系統生成（約 10~30 秒）
-5. 點擊「📥 下載所有診斷報告」儲存 ZIP 檔
+5. 點擊「下載所有診斷報告」儲存 ZIP 檔
 """)
 
 with st.expander("📧 第四步：寄送 Email（選用）"):
 st.markdown("""
-**⚠️ 使用 Gmail 寄信前，請先設定「應用程式密碼」：**
+**使用 Gmail 寄信前，請先設定「應用程式密碼」：**
 
 1. 開啟 Google 帳號的「兩步驟驗證」
 2. 到「應用程式密碼」產生 16 位密碼
@@ -19,7 +19,7 @@ st.markdown("""
    - 寄件者：你的 Gmail
    - 密碼：16 位應用程式密碼
 
-[🔗 點此前往 Google 應用程式密碼設定](https://myaccount.google.com/apppasswords)
+[點此前往 Google 應用程式密碼設定](https://myaccount.google.com/apppasswords)
 """)
 
 st.markdown("---")
@@ -35,10 +35,17 @@ st.title("🧬 生物科個人化診斷報告產生器")
 st.markdown("---")
 col1, col2, col3 = st.columns(3)
 with col1:
-st.metric("📋 已載入字型", "✅ 就緒" if Path("NotoSansTC-Regular.ttf").exists() else "❌ 未找到")
+font_exists = Path("NotoSansTC-Regular.ttf").exists()
+st.metric("📋 已載入字型", "✅ 就緒" if font_exists else "❌ 未找到")
 with col2:
-st.metric("📊 學生資料", "等待上傳" if "df" not in st.session_state else f"{len(st.session_state.df)} 人")
+if "df" in st.session_state:
+st.metric("📊 學生資料", f"{len(st.session_state.df)} 人")
+else:
+st.metric("📊 學生資料", "等待上傳")
 with col3:
+if "zip_path" in st.session_state:
+st.metric("📄 報告狀態", "✅ 已產生")
+else:
 st.metric("📄 報告狀態", "未產生")
 
 # =============================================
@@ -107,9 +114,9 @@ st.markdown("## 🚀 步驟二：產生診斷報告")
 
 # 進階選項
 with st.expander("⚙️ 進階選項"):
-st.checkbox("在報告中顯示班級名稱", value=True, key="show_class")
-st.text_input("班級名稱", value="9年01班", key="class_name")
-st.number_input("每份報告最少題數", min_value=3, max_value=10, value=5, key="min_questions")
+show_class = st.checkbox("在報告中顯示班級名稱", value=True)
+class_name = st.text_input("班級名稱", value="9年01班")
+min_questions = st.number_input("每份報告最少題數", min_value=3, max_value=10, value=5)
 
 # =============================================
 # 錯題題庫（對應補考卷）
@@ -255,7 +262,7 @@ story.append(Spacer(1, 8))
 questions = generate_practice_questions(
     row.get('基礎錯題', ''),
     row.get('精熟錯題', ''),
-    st.session_state.get('min_questions', 5)
+    min_questions
 )
 
 source_text = f"📌 本卷對應你的錯題：基礎題 {row.get('基礎錯題', '無') if pd.notna(row.get('基礎錯題', '無')) else '無'} | 精熟題 {row.get('精熟錯題', '無') if pd.notna(row.get('精熟錯題', '無')) else '無'}"
@@ -282,7 +289,7 @@ return pdf_filename
 if st.button("🚀 產生所有學生的診斷報告", type="primary", use_container_width=True):
 with st.spinner("⏳ 正在生成 PDF，請稍候（約 10~30 秒）..."):
     output_dir = tempfile.mkdtemp()
-    class_name = st.session_state.get('class_name', '9年01班')
+    class_name_val = class_name if show_class else ""
     success_count = 0
 
     progress_bar = st.progress(0)
@@ -291,7 +298,7 @@ with st.spinner("⏳ 正在生成 PDF，請稍候（約 10~30 秒）..."):
     for idx, row in df.iterrows():
         status_text.text(f"正在處理：{row['姓名']} ({idx+1}/{len(df)})")
         try:
-            create_student_pdf(row, output_dir, class_name)
+            create_student_pdf(row, output_dir, class_name_val)
             success_count += 1
         except Exception as e:
             st.warning(f"⚠️ {row['姓名']} 產生失敗：{str(e)}")
@@ -315,7 +322,7 @@ with st.spinner("⏳ 正在生成 PDF，請稍候（約 10~30 秒）..."):
 # 下載按鈕
 # =============================================
 
-if hasattr(st.session_state, 'zip_path'):
+if "zip_path" in st.session_state:
 st.markdown("## 📥 步驟三：下載報告")
 
 with open(st.session_state.zip_path, 'rb') as f:
@@ -337,7 +344,7 @@ st.markdown("## 📧 步驟四：寄送 Email 給學生（選用）")
 
 with st.expander("⚙️ 設定 Gmail 寄信（點擊展開）"):
     st.warning("""
-    ⚠️ **使用前注意事項**：
+    **使用前注意事項**：
     1. 必須啟用 Gmail 的「兩步驟驗證」
     2. 必須產生「應用程式密碼」（16碼）
     3. [點此前往 Google 應用程式密碼設定](https://myaccount.google.com/apppasswords)
@@ -347,21 +354,18 @@ with st.expander("⚙️ 設定 Gmail 寄信（點擊展開）"):
     with col1:
         sender_email = st.text_input(
             "寄件者 Email（Gmail）",
-            placeholder="your_email@gmail.com",
-            help="請填寫你的 Gmail 完整地址"
+            placeholder="your_email@gmail.com"
         )
     with col2:
         sender_password = st.text_input(
             "應用程式密碼",
             type="password",
-            placeholder="請輸入 16 位密碼",
-            help="不是你的登入密碼，是專門的應用程式密碼"
+            placeholder="請輸入 16 位密碼"
         )
 
     subject = st.text_input(
         "信件主旨",
-        value="🧬 你的生物科個人化診斷報告",
-        help="學生收到的 Email 標題"
+        value="🧬 你的生物科個人化診斷報告"
     )
 
     email_body_template = st.text_area(
@@ -375,8 +379,7 @@ with st.expander("⚙️ 設定 Gmail 寄信（點擊展開）"):
 加油！🔥
 
 老師 敬上""",
-        height=150,
-        help="在內文中輸入 {姓名}，系統會自動替換成學生的名字"
+        height=150
     )
 
     # 測試寄信
